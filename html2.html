@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Interaction Point · The LHC and Its Four Detectors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<style>
+  :root{
+    --void:#0a0614;
+    --void-2:#0f0a1c;
+    --panel:rgba(22,14,38,0.68);
+    --panel-solid:#160e26;
+    --line:rgba(196,168,240,0.14);
+    --line-soft:rgba(196,168,240,0.08);
+    --violet:#a685ff;
+    --violet-dim:#5d4499;
+    --magenta:#d68fff;
+    --magenta-dim:#7d4a99;
+    --beam1:#8fd8ff;
+    --beam2:#ff8fd0;
+    --starlight:#ece5fa;
+    --text:#b3a3d4;
+    --text-dim:#7566a0;
+    --text-faint:#493a6b;
+    --serif:'Fraunces','Georgia',serif;
+    --body:'Inter','Segoe UI',sans-serif;
+    --mono:'JetBrains Mono','Courier New',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--void);color:var(--text);font-family:var(--body);overflow:hidden;height:100%;}
+  ::selection{background:rgba(166,133,255,0.28);}
+
+  #stage{position:fixed;inset:0;width:100vw;height:100vh;touch-action:none;cursor:grab;}
+  #stage.dragging{cursor:grabbing;}
+  #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(6,3,12,0.68) 100%);}
+
+  #loader{position:fixed;inset:0;z-index:50;background:var(--void);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .7s ease;}
+  #loader .orbit{position:relative;width:64px;height:64px;}
+  #loader .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(166,133,255,0.18);}
+  #loader .ring2{position:absolute;inset:14px;border-radius:50%;border-top:2px solid var(--violet);border-right:2px solid transparent;animation:spin 1.3s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loader .core{position:absolute;inset:26px;border-radius:50%;background:#000;box-shadow:0 0 18px 4px rgba(166,133,255,0.4);}
+  #loader .txt{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-faint);}
+  #loader .txt .accent{color:var(--violet);}
+  #loader.hidden{opacity:0;pointer-events:none;}
+
+  #loadError{position:fixed;inset:0;z-index:51;background:rgba(6,3,12,0.94);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;padding:20px;}
+  #loadError.show{display:flex;}
+  #loadError h2{font-family:var(--serif);font-size:20px;margin:0;color:var(--violet);font-weight:500;}
+  #loadError p{font-family:var(--mono);font-size:12px;color:var(--text-dim);max-width:420px;line-height:1.6;}
+
+  .hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:flex;flex-direction:column;}
+  .hud > *{pointer-events:auto;}
+
+  .masthead{padding:26px 30px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+  .title-block .eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--violet);margin-bottom:6px;}
+  .title-block h1{font-family:var(--serif);font-weight:500;font-size:26px;color:var(--starlight);margin:0;letter-spacing:.01em;font-style:italic;}
+  .title-block .sub{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:5px;letter-spacing:.03em;max-width:480px;}
+  .drag-hint{font-family:var(--mono);font-size:10px;color:var(--text-faint);text-align:right;line-height:1.7;padding-top:4px;}
+
+  .instrument{
+    background:var(--panel);border:1px solid var(--line);border-radius:20px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    box-shadow:0 18px 50px rgba(0,0,0,0.45);
+  }
+  .instrument-hd{font-family:var(--serif);font-style:italic;font-weight:500;font-size:14px;color:var(--starlight);padding:14px 18px 10px;border-bottom:1px solid var(--line-soft);}
+  .instrument-hd .n{font-family:var(--mono);font-size:9px;color:var(--text-faint);font-style:normal;letter-spacing:.1em;display:block;margin-top:2px;}
+
+  .rail{position:fixed;left:30px;top:130px;bottom:150px;width:270px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+  .rail::-webkit-scrollbar{width:5px;} .rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+
+  .exp-wrap{padding:12px;}
+  .exp-btn{
+    width:100%;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.02);border:1px solid var(--line);
+    color:var(--text-dim);font-family:var(--body);text-align:left;padding:9px 12px;border-radius:12px;cursor:pointer;transition:.15s;margin-bottom:6px;
+  }
+  .exp-btn:last-child{margin-bottom:0;}
+  .exp-btn:hover{border-color:var(--violet-dim);color:var(--starlight);}
+  .exp-btn.active{background:rgba(166,133,255,0.1);border-color:var(--violet);color:var(--starlight);}
+  .exp-btn .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px currentColor;}
+  .exp-btn .lbl{display:flex;flex-direction:column;gap:1px;}
+  .exp-btn .lbl b{font-size:12.5px;font-weight:600;}
+  .exp-btn .lbl small{font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:.03em;}
+
+  .fig-list{padding:6px 18px 16px;}
+  .fig-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line-soft);gap:10px;}
+  .fig-row:last-child{border-bottom:none;}
+  .fig-row .k{font-family:var(--body);font-size:11px;color:var(--text-dim);}
+  .fig-row .v{font-family:var(--mono);font-size:11.5px;color:var(--starlight);font-weight:600;text-align:right;}
+  .fig-row .v small{color:var(--text-faint);font-weight:400;}
+
+  .about-box{padding:4px 18px 16px;}
+  .about-box p{font-family:var(--body);font-size:10.9px;color:var(--text-dim);line-height:1.6;margin:0 0 8px;}
+  .about-box p:last-child{margin-bottom:0;}
+  .about-box b{color:var(--starlight);}
+
+  .probe-panel{position:fixed;right:30px;top:130px;width:256px;display:flex;flex-direction:column;gap:14px;}
+  .beam-readout{font-family:var(--serif);font-style:italic;font-size:20px;color:var(--violet);text-align:center;margin-bottom:2px;}
+  .beam-readout small{font-family:var(--mono);font-style:normal;font-size:9.5px;color:var(--text-dim);display:block;margin-top:2px;}
+
+  .collide-btn{
+    width:100%;background:linear-gradient(135deg, var(--violet), #7c4fd6);color:#0d0518;font-family:var(--mono);
+    font-weight:700;font-size:11.5px;letter-spacing:.05em;border:none;padding:12px;border-radius:12px;
+    cursor:pointer;box-shadow:0 4px 22px rgba(166,133,255,.28);transition:.15s;text-transform:uppercase;
+  }
+  .collide-btn:hover{transform:translateY(-1px);box-shadow:0 6px 26px rgba(166,133,255,.4);}
+  .collide-btn:disabled{opacity:.4;cursor:default;transform:none;box-shadow:none;}
+
+  .event-readout{padding:14px 18px 16px;}
+  .event-row{display:flex;justify-content:space-between;padding:6px 0;font-family:var(--mono);font-size:10.6px;}
+  .event-row .k{color:var(--text-faint);}
+  .event-row .v{color:var(--starlight);}
+  .event-note{font-family:var(--body);font-size:10.2px;color:var(--text-dim);line-height:1.55;padding-top:8px;border-top:1px solid var(--line-soft);margin-top:4px;}
+
+  .footer-note{position:fixed;bottom:0;left:0;right:0;padding:16px 30px 20px;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .scope-toggle{background:none;border:1px solid var(--line);color:var(--text-faint);font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;padding:6px 14px;border-radius:20px;cursor:pointer;transition:.15s;}
+  .scope-toggle:hover{color:var(--text);border-color:var(--violet-dim);}
+  .scope-note{font-family:var(--body);font-size:10.7px;color:var(--text-dim);max-width:680px;text-align:center;line-height:1.65;max-height:0;overflow:hidden;opacity:0;transition:max-height .25s ease, opacity .2s ease, padding .25s ease;}
+  .scope-note.open{max-height:260px;opacity:1;padding-top:6px;}
+  .scope-note b{color:var(--starlight);}
+
+  .cam-tabs{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:5px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
+  .cam-tabs button{background:none;border:none;color:var(--text-faint);font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;padding:7px 13px;border-radius:11px;cursor:pointer;transition:.15s;text-transform:uppercase;}
+  .cam-tabs button:hover{color:var(--starlight);}
+  .cam-tabs button.active{background:rgba(166,133,255,0.14);color:var(--violet);}
+
+  @media (max-width:980px){
+    .rail{position:fixed;left:16px;right:16px;top:auto;bottom:150px;width:auto;flex-direction:row;overflow-x:auto;overflow-y:visible;max-height:none;}
+    .rail .instrument{min-width:230px;flex-shrink:0;}
+    .probe-panel{position:fixed;left:16px;right:16px;top:auto;bottom:150px;width:auto;display:none;}
+    .masthead{padding:18px 16px 0;}
+    .title-block h1{font-size:20px;}
+    .drag-hint{display:none;}
+    .cam-tabs{bottom:150px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="orbit"><div class="ring"></div><div class="ring2"></div><div class="core"></div></div><div class="txt">Spinning up <span class="accent">27&nbsp;km of dipoles</span>…</div></div>
+<div id="loadError"><h2>The renderer didn't load</h2><p>This piece renders the LHC ring and its detectors live in WebGL and needs an internet connection to load Three.js from its CDN. Check your connection and reload.</p></div>
+
+<div id="stage"><canvas id="lhcCanvas"></canvas></div>
+<div class="vignette"></div>
+
+<div class="hud">
+  <div class="masthead">
+    <div class="title-block">
+      <div class="eyebrow">Physics room · Particle Physics, CERN</div>
+      <h1>Interaction Point</h1>
+      <div class="sub">the LHC ring and its four major experiments, modelled to real scale, mass and field strength — not stock renders</div>
+    </div>
+    <div class="drag-hint">drag to orbit · scroll to change distance<br>every dimension shown is a published CERN figure</div>
+  </div>
+
+  <div class="rail">
+    <div class="instrument">
+      <div class="instrument-hd">Experiments<span class="n">choose a detector — the view flies to its interaction point</span></div>
+      <div class="exp-wrap" id="expRow"></div>
+    </div>
+
+    <div class="instrument" id="figCard">
+      <div class="instrument-hd" id="figHd">Derived figures<span class="n" id="figSub">computed from the LHC's design parameters</span></div>
+      <div class="fig-list" id="figList"></div>
+    </div>
+
+    <div class="instrument" id="aboutCard">
+      <div class="instrument-hd">What it's for</div>
+      <div class="about-box" id="aboutBox"></div>
+    </div>
+  </div>
+
+  <div class="probe-panel">
+    <div class="instrument">
+      <div class="instrument-hd">Beam<span class="n">7 TeV protons, counter-circulating</span></div>
+      <div style="padding:16px 18px 6px;">
+        <div class="beam-readout" id="beamEnergy">6.8 TeV <small>per beam</small></div>
+      </div>
+      <div style="padding:0 18px 16px;">
+        <button class="collide-btn" id="collideBtn">Trigger a collision</button>
+      </div>
+      <div class="event-readout">
+        <div class="event-row"><span class="k">√s (centre-of-mass)</span><span class="v" id="evComEnergy">13.6 TeV</span></div>
+        <div class="event-row"><span class="k">Lorentz factor γ</span><span class="v" id="evGamma">7,246×</span></div>
+        <div class="event-row"><span class="k">Proton speed</span><span class="v" id="evSpeed">0.999999991 c</span></div>
+        <div class="event-row"><span class="k">Bunch crossing</span><span class="v" id="evCrossing">every 25 ns</span></div>
+        <div class="event-note">Tracks fan out from the interaction point with total momentum conserved — this is a schematic multiplicity, not a GEANT4 shower simulation.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cam-tabs" id="camTabs">
+    <button data-mode="ring" class="active">Full ring</button>
+    <button data-mode="detector">Detector cutaway</button>
+  </div>
+
+  <div class="footer-note">
+    <button class="scope-toggle" id="scopeToggle" aria-expanded="false" aria-controls="scopeNote">Ⓘ how this is built</button>
+    <div class="scope-note" id="scopeNote">
+      <b>What this is:</b> the ring is drawn at its true circumference (26,659 m) and the four detector cutaways use each experiment's real published length, diameter, mass and magnet field, scaled consistently against each other and against the ring. The beam-energy, γ-factor, √s, and bunch-spacing figures are computed live from CERN's Run 3 design parameters (6.8 TeV/beam, 13.6 TeV collision energy, 25 ns bunch spacing) using E=γmc². <b>What this isn't:</b> the internal detector geometry (calorimeter towers, tracker layers, muon chambers) is a simplified schematic built from primitives, not an as-built CAD import, and "trigger a collision" draws an illustrative track fan-out rather than a GEANT4-level shower simulation.
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+window.__lhcReady = false;
+setTimeout(()=>{ if(!window.__lhcReady){ document.getElementById('loadError').classList.add('show'); document.getElementById('loader').classList.add('hidden'); } }, 9000);
+window.addEventListener('error', ()=>{ if(!window.__lhcReady){ document.getElementById('loadError').classList.add('show'); } });
+
+try{
+(function main(){
+const $ = id => document.getElementById(id);
+
+// ============================================================
+// PHYSICAL CONSTANTS + LHC / EXPERIMENT DATA (all figures sourced
+// from CERN's published specifications — see scope note)
+// ============================================================
+const C = 2.99792458e8;         // m/s
+const PROTON_MASS_KG = 1.67262192369e-27;
+const PROTON_MASS_MEV = 938.272;
+const EV_TO_J = 1.602176634e-19;
+
+const LHC = {
+  circumference: 26659,          // m
+  beamEnergyTeV: 6.8,            // TeV per beam, Run 3 nominal
+  comEnergyTeV: 13.6,            // TeV, proton-proton
+  peakLuminosity: 2e34,          // cm^-2 s^-1 (ATLAS/CMS, Run 3)
+  bunchSpacingNs: 25,
+  depthM: 100,                   // approx average depth underground
+  dipoleFieldT: 8.33,            // T, main dipole field at 6.8 TeV/beam (nominal 8.33T @ 7TeV design; used as representative)
+};
+
+// gamma = E_total / (m c^2); E_total = beam energy in eV
+function lorentzGamma(beamEnergyTeV){
+  const E_eV = beamEnergyTeV*1e12;
+  return E_eV/(PROTON_MASS_MEV*1e6);
+}
+function betaFromGamma(gamma){
+  return Math.sqrt(1 - 1/(gamma*gamma));
+}
+
+const EXPERIMENTS = {
+  atlas:{
+    name:'ATLAS', full:'A Toroidal LHC ApparatuS',
+    color:'#a685ff', point:'IP1', pointLabel:'Point 1 · Meyrin, Switzerland',
+    lengthM:46, diameterM:25, massT:7000,
+    fieldT:2.0, fieldNote:'2 T solenoid (inner tracker) + 0.5–1.5 T air-core toroids (muon system)',
+    depthM:100,
+    figures:[
+      ['Length', '46 m'], ['Diameter', '25 m'], ['Total mass', '7,000 t'],
+      ['Magnet system', '4 superconducting magnets — 1 solenoid + barrel & end-cap toroids'],
+      ['Toroid system size', '20 m ⌀ × 26 m, 1.6 GJ stored energy'],
+      ['Depth underground', '~100 m'], ['Collaboration', '~5,900 physicists, 40+ countries'],
+    ],
+    about:[
+      'ATLAS is one of two general-purpose detectors at the LHC, built to catch almost any new particle a proton–proton collision might produce.',
+      'It co-discovered the <b>Higgs boson</b> in 2012 alongside CMS, and its physics programme spans precision Standard Model tests, searches for supersymmetry, dark matter candidates and extra dimensions.',
+      'Its name comes from the distinctive air-core <b>toroidal</b> magnets that bend muons in the outermost layer — the largest superconducting magnet system ever built.',
+    ],
+    build:'atlas',
+  },
+  cms:{
+    name:'CMS', full:'Compact Muon Solenoid',
+    color:'#d68fff', point:'IP5', pointLabel:'Point 5 · Cessy, France',
+    lengthM:21.6, diameterM:14.6, massT:14000,
+    fieldT:3.8, fieldNote:'3.8 T superconducting solenoid (design 4 T)',
+    depthM:100,
+    figures:[
+      ['Length', '21.6 m'], ['Diameter', '14.6 m'], ['Total mass', '14,000 t'],
+      ['Solenoid', '6 m bore, 12.5 m long, 3.8 T'], ['Iron return yoke', '~10,000 t'],
+      ['Depth underground', '~100 m'], ['Collaboration', '~5,500 physicists, 50+ countries'],
+    ],
+    about:[
+      'CMS is the LHC\'s other general-purpose detector — same physics goals as ATLAS, pursued with an entirely independent design, which is exactly the point: two teams, two technologies, one cross-check.',
+      'Its huge 3.8 T solenoid — the strongest of any collider detector — lets a comparatively <b>compact</b> device achieve excellent momentum resolution, hence the name.',
+      'CMS shared credit for the 2012 <b>Higgs boson</b> discovery and continues precision Higgs and top-quark measurements plus searches for physics beyond the Standard Model.',
+    ],
+    build:'cms',
+  },
+  alice:{
+    name:'ALICE', full:'A Large Ion Collider Experiment',
+    color:'#8fd8ff', point:'IP2', pointLabel:'Point 2 · Saint-Genis-Pouilly, France',
+    lengthM:26, diameterM:16, massT:10000,
+    fieldT:0.5, fieldNote:'0.5 T solenoid (repurposed L3 magnet from LEP)',
+    depthM:56,
+    figures:[
+      ['Length', '26 m'], ['Diameter', '16 m'], ['Total mass', '~10,000 t'],
+      ['Solenoid field', '0.5 T (former LEP/L3 magnet)'], ['Sub-detector systems', '18'],
+      ['Depth underground', '56 m'], ['Collaboration', '~1,900 physicists, 40+ countries'],
+    ],
+    about:[
+      'ALICE is purpose-built for the LHC\'s heavy-ion runs, when lead nuclei replace protons in the beams.',
+      'Lead–lead collisions briefly recreate temperatures over <b>10¹²  K</b> — hot enough to melt protons and neutrons into <b>quark-gluon plasma</b>, the state of matter thought to have filled the universe microseconds after the Big Bang.',
+      'Its weak 0.5 T field and low-material tracking are deliberate: heavy-ion collisions produce thousands of particles at once, so ALICE trades peak momentum resolution for the ability to disentangle a much denser forest of tracks.',
+    ],
+    build:'alice',
+  },
+  lhcb:{
+    name:'LHCb', full:'Large Hadron Collider beauty',
+    color:'#ff8fd0', point:'IP8', pointLabel:'Point 8 · Ferney-Voltaire, France',
+    lengthM:21, diameterM:13, massT:5600,
+    fieldT:'4 T·m', fieldNote:'warm dipole magnet, ~4 T·m integrated bending power',
+    depthM:100,
+    figures:[
+      ['Length', '21 m'], ['Height', '10 m'], ['Width', '13 m'], ['Total mass', '5,600 t'],
+      ['Geometry', 'single-arm forward spectrometer, 2 < η < 5'],
+      ['Dipole magnet', 'warm, ~4 T·m integrated field'],
+      ['Depth underground', '~100 m (deepest LHC point)'], ['Collaboration', '~1,600 physicists, 20+ countries'],
+    ],
+    about:[
+      'LHCb doesn\'t wrap the collision point in concentric layers like the other three — it\'s a <b>single-arm spectrometer</b>, stacked one sub-detector behind another over 20 m, because the b- and c-quark-carrying particles it hunts are thrown mostly forward.',
+      'Its job is precision study of <b>beauty (b) and charm (c) quark</b> decays, probing tiny asymmetries between matter and antimatter (CP violation) that may help explain why the universe is made of matter at all.',
+      'A warm (non-superconducting) dipole magnet bends charged tracks in the horizontal plane so their momentum can be measured to about 0.4%.',
+    ],
+    build:'lhcb',
+  },
+};
+const EXP_ORDER = ['atlas','cms','alice','lhcb'];
+
+// ============================================================
+// FORMATTERS
+// ============================================================
+function fmtNum(n, d=2){ return n.toLocaleString(undefined,{maximumFractionDigits:d}); }
+
+// ============================================================
+// SCENE SETUP
+// ============================================================
+const canvas = $('lhcCanvas');
+const stageEl = $('stage');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setClearColor(0x0a0614, 1);
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0614, 0.00085);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 1, 20000);
+
+// ------------------------------------------------------------
+// Scale: the true ring circumference is 26,659 m. We work in
+// "scene metres" = real metres / 20, so the ring radius is
+// ~212 scene units — big enough to read as a ring, but detectors
+// (tens of metres) stay reasonably sized relative to it.
+// ------------------------------------------------------------
+const SCALE = 1/20;
+const ringRadius = (LHC.circumference/(2*Math.PI)) * SCALE; // ~212.4 units
+
+// starfield
+function makeStars(){
+  const geo = new THREE.BufferGeometry();
+  const N = 2600;
+  const pos = new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    const r = 900 + Math.random()*2600;
+    const th = Math.random()*Math.PI*2, ph = Math.acos(2*Math.random()-1);
+    pos[i*3] = r*Math.sin(ph)*Math.cos(th);
+    pos[i*3+1] = r*Math.cos(ph)*0.6;
+    pos[i*3+2] = r*Math.sin(ph)*Math.sin(th);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({color:0xcbb8ee, size:1.6, sizeAttenuation:true, transparent:true, opacity:0.55});
+  return new THREE.Points(geo, mat);
+}
+scene.add(makeStars());
+
+// faint ground / cavern haze reference plane (barely visible, gives depth cue)
+{
+  const g = new THREE.RingGeometry(ringRadius*0.2, ringRadius*1.5, 64);
+  const m = new THREE.MeshBasicMaterial({color:0x1a1030, transparent:true, opacity:0.06, side:THREE.DoubleSide});
+  const mesh = new THREE.Mesh(g,m);
+  mesh.rotation.x = Math.PI/2;
+  mesh.position.y = -ringRadius*0.42;
+  scene.add(mesh);
+}
+
+// ------------------------------------------------------------
+// THE RING — torus of the beam pipe, plus the two counter-
+// circulating beams drawn as thin bright tori just inside it.
+// ------------------------------------------------------------
+const ringGroup = new THREE.Group();
+scene.add(ringGroup);
+
+const tubeR = 1.4;
+const ringGeo = new THREE.TorusGeometry(ringRadius, tubeR, 12, 220);
+const ringMat = new THREE.MeshStandardMaterial({color:0x2a1f42, metalness:0.6, roughness:0.4, emissive:0x120a24, emissiveIntensity:0.4});
+const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+ringMesh.rotation.x = Math.PI/2;
+ringGroup.add(ringMesh);
+
+// beam lines (two, offset slightly, counter-rotating highlight pulses)
+function makeBeamRing(color, offset){
+  const geo = new THREE.TorusGeometry(ringRadius, 0.28, 8, 220);
+  const mat = new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.85});
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = Math.PI/2;
+  m.position.y = offset;
+  return m;
+}
+const beamA = makeBeamRing(0x8fd8ff, 0.6);
+const beamB = makeBeamRing(0xff8fd0, -0.6);
+ringGroup.add(beamA, beamB);
+
+// pulse sprites travelling around each beam ring (visual only, correct direction of travel)
+function makePulses(color, n, offsetY, dir){
+  const group = new THREE.Group();
+  const geo = new THREE.SphereGeometry(0.9, 8, 8);
+  const mat = new THREE.MeshBasicMaterial({color});
+  const pulses = [];
+  for(let i=0;i<n;i++){
+    const m = new THREE.Mesh(geo, mat);
+    const phase = (i/n)*Math.PI*2;
+    pulses.push({mesh:m, phase, dir});
+    group.add(m);
+  }
+  group.userData.offsetY = offsetY;
+  group.userData.pulses = pulses;
+  return group;
+}
+const pulsesA = makePulses(0xbfeaff, 26, 0.6, 1);
+const pulsesB = makePulses(0xffc2e8, 26, -0.6, -1);
+ringGroup.add(pulsesA, pulsesB);
+
+// Experiment cavern markers around the ring, placed at the correct
+// azimuthal fraction of the ring for their point number (IP1, IP2,
+// IP5, IP8 out of 8 evenly-spaced LHC points around the octant scheme).
+const IP_ANGLE = {
+  atlas: 0,                    // IP1
+  alice: Math.PI/2,            // IP2 (90° around, schematic)
+  cms:   Math.PI,              // IP5 (opposite ATLAS, schematic)
+  lhcb:  Math.PI*1.5,          // IP8 (270° around, schematic)
+};
+const markers = {};
+for(const key of EXP_ORDER){
+  const exp = EXPERIMENTS[key];
+  const ang = IP_ANGLE[key];
+  const grp = new THREE.Group();
+  const x = Math.cos(ang)*ringRadius, z = Math.sin(ang)*ringRadius;
+  grp.position.set(x, 0, z);
+
+  const glowGeo = new THREE.SphereGeometry(3.6, 20, 20);
+  const glowMat = new THREE.MeshBasicMaterial({color:exp.color, transparent:true, opacity:0.85});
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  grp.add(glow);
+
+  const haloGeo = new THREE.RingGeometry(5, 6.4, 40);
+  const haloMat = new THREE.MeshBasicMaterial({color:exp.color, transparent:true, opacity:0.35, side:THREE.DoubleSide});
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  halo.lookAt(camera.position);
+  grp.add(halo);
+
+  grp.userData.halo = halo;
+  grp.userData.key = key;
+  ringGroup.add(grp);
+  markers[key] = grp;
+}
+
+// ============================================================
+// DETECTOR CUTAWAY BUILDERS
+// each built from real published dimensions (metres), scaled by
+// a shared DETAIL_SCALE so relative proportions between detectors
+// stay physically correct.
+// ============================================================
+const DETAIL_SCALE = 1.0; // 1 scene unit = 1 metre in detail view
+const detailGroups = {};
+
+function colorObj(hex){ return new THREE.Color(hex); }
+
+function buildATLAS(){
+  const g = new THREE.Group();
+  const c = colorObj(EXPERIMENTS.atlas.color);
+  // barrel toroid: 8 flat coils around a central cylinder, 25m long, ~20m diameter
+  const barrelLen = 25, barrelOuterR = 10.05, barrelInnerR = 4.7;
+  const coilMat = new THREE.MeshStandardMaterial({color:c, metalness:0.3, roughness:0.35, emissive:c, emissiveIntensity:0.12, transparent:true, opacity:0.55});
+  for(let i=0;i<8;i++){
+    const ang = (i/8)*Math.PI*2;
+    const coil = new THREE.Mesh(new THREE.BoxGeometry(barrelLen, 5.0, 0.9), coilMat);
+    coil.position.set(0, Math.sin(ang)*(barrelOuterR-1.2), Math.cos(ang)*(barrelOuterR-1.2));
+    coil.rotation.x = ang;
+    g.add(coil);
+  }
+  // inner solenoid + calorimeter core (nested cylinders)
+  const calo = new THREE.Mesh(new THREE.CylinderGeometry(barrelInnerR, barrelInnerR, 22, 32, 1, true),
+    new THREE.MeshStandardMaterial({color:0x6b5399, metalness:0.4, roughness:0.5, transparent:true, opacity:0.5, side:THREE.DoubleSide}));
+  calo.rotation.z = Math.PI/2;
+  g.add(calo);
+  const solenoid = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 12.5, 24, 1, true),
+    new THREE.MeshBasicMaterial({color:0xece5fa, transparent:true, opacity:0.5, side:THREE.DoubleSide}));
+  solenoid.rotation.z = Math.PI/2;
+  g.add(solenoid);
+  // end-cap toroids (two discs)
+  const endMat = new THREE.MeshStandardMaterial({color:c, metalness:0.3, roughness:0.4, transparent:true, opacity:0.4});
+  for(const s of [-1,1]){
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(5.35, 5.35, 5.0, 24), endMat);
+    cap.rotation.z = Math.PI/2;
+    cap.position.x = s*15.5;
+    g.add(cap);
+  }
+  // beam pipe through the whole thing
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35, barrelLen+8, 12),
+    new THREE.MeshBasicMaterial({color:0xbfeaff}));
+  pipe.rotation.z = Math.PI/2;
+  g.add(pipe);
+  return g;
+}
+
+function buildCMS(){
+  const g = new THREE.Group();
+  const c = colorObj(EXPERIMENTS.cms.color);
+  const len = 21.6, outerR = 7.3;
+  // iron return yoke (5 barrel wheels, shown as concentric drum)
+  const yoke = new THREE.Mesh(new THREE.CylinderGeometry(outerR, outerR, len, 32, 1, true),
+    new THREE.MeshStandardMaterial({color:0x392a5c, metalness:0.55, roughness:0.45, transparent:true, opacity:0.42, side:THREE.DoubleSide}));
+  yoke.rotation.z = Math.PI/2;
+  g.add(yoke);
+  // solenoid (6m diameter, 12.5m long, bright)
+  const sol = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 12.5, 28, 1, true),
+    new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:0.6, side:THREE.DoubleSide}));
+  sol.rotation.z = Math.PI/2;
+  g.add(sol);
+  // tracker + calorimeter core
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,10.5,24,1,true),
+    new THREE.MeshStandardMaterial({color:0xece5fa, transparent:true, opacity:0.55, side:THREE.DoubleSide}));
+  core.rotation.z = Math.PI/2;
+  g.add(core);
+  // end-cap discs (muon stations)
+  const endMat = new THREE.MeshStandardMaterial({color:0x392a5c, metalness:0.5, roughness:0.5, transparent:true, opacity:0.5});
+  for(const s of [-1,1]){
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(outerR, outerR, 1.4, 32), endMat);
+    disc.rotation.z = Math.PI/2;
+    disc.position.x = s*(len/2+0.7);
+    g.add(disc);
+  }
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3, len+6, 12),
+    new THREE.MeshBasicMaterial({color:0xbfeaff}));
+  pipe.rotation.z = Math.PI/2;
+  g.add(pipe);
+  return g;
+}
+
+function buildALICE(){
+  const g = new THREE.Group();
+  const c = colorObj(EXPERIMENTS.alice.color);
+  const len = 26, outerR = 6.4; // central barrel roughly 12.8 diameter within 16x16 envelope incl. spectrometer
+  // L3 solenoid (octagonal-ish, approximate as low-poly cylinder)
+  const sol = new THREE.Mesh(new THREE.CylinderGeometry(outerR, outerR, 12.5, 8, 1, true),
+    new THREE.MeshStandardMaterial({color:c, metalness:0.35, roughness:0.5, transparent:true, opacity:0.4, side:THREE.DoubleSide}));
+  sol.rotation.z = Math.PI/2;
+  g.add(sol);
+  // TPC drum
+  const tpc = new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,5.0,28,1,true),
+    new THREE.MeshBasicMaterial({color:0xece5fa, transparent:true, opacity:0.55, side:THREE.DoubleSide}));
+  tpc.rotation.z = Math.PI/2;
+  g.add(tpc);
+  // forward muon spectrometer arm (asymmetric, one side only — ALICE's real geometry)
+  const armMat = new THREE.MeshStandardMaterial({color:0x4a3a72, metalness:0.4, roughness:0.5, transparent:true, opacity:0.5});
+  for(let i=0;i<4;i++){
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.6 - i*0.3, 3.6 - i*0.3, 0.5, 24), armMat);
+    disc.rotation.z = Math.PI/2;
+    disc.position.x = -(9 + i*2.2);
+    g.add(disc);
+  }
+  // dipole for muon arm
+  const dipole = new THREE.Mesh(new THREE.BoxGeometry(4.5, 5, 5), new THREE.MeshStandardMaterial({color:0x4a3a72, transparent:true, opacity:0.45}));
+  dipole.position.x = -15.5;
+  g.add(dipole);
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32, len+4, 12),
+    new THREE.MeshBasicMaterial({color:0xbfeaff}));
+  pipe.rotation.z = Math.PI/2;
+  g.add(pipe);
+  return g;
+}
+
+function buildLHCb(){
+  const g = new THREE.Group();
+  const c = colorObj(EXPERIMENTS.lhcb.color);
+  // single-arm forward spectrometer: series of flat planar stations along beam axis (one direction only)
+  const stationMat = new THREE.MeshStandardMaterial({color:c, metalness:0.3, roughness:0.4, transparent:true, opacity:0.55, side:THREE.DoubleSide});
+  const nStations = 9;
+  for(let i=0;i<nStations;i++){
+    const t = i/(nStations-1);
+    const zpos = 1 + t*20; // spread across ~20m downstream
+    const size = 1.2 + t*5.5; // stations get larger downstream (real LHCb geometry)
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(size, size), stationMat);
+    plate.position.x = zpos;
+    g.add(plate);
+  }
+  // dipole magnet block (~7.5m long, sits mid-way)
+  const dipole = new THREE.Mesh(new THREE.BoxGeometry(7.5, 4.6, 2.5),
+    new THREE.MeshStandardMaterial({color:0x6b3a5c, metalness:0.4, roughness:0.5, transparent:true, opacity:0.45}));
+  dipole.position.x = 9;
+  g.add(dipole);
+  // VELO near IP (small)
+  const velo = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,1.2,16),
+    new THREE.MeshBasicMaterial({color:0xece5fa, transparent:true, opacity:0.7}));
+  velo.rotation.z = Math.PI/2;
+  g.add(velo);
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28, 24, 12),
+    new THREE.MeshBasicMaterial({color:0xbfeaff}));
+  pipe.rotation.z = Math.PI/2;
+  pipe.position.x = 10;
+  g.add(pipe);
+  return g;
+}
+
+const builders = {atlas:buildATLAS, cms:buildCMS, alice:buildALICE, lhcb:buildLHCb};
+for(const key of EXP_ORDER){
+  const grp = builders[key]();
+  grp.visible = false;
+  detailGroups[key] = grp;
+  scene.add(grp);
+}
+
+// ============================================================
+// LIGHTING
+// ============================================================
+scene.add(new THREE.AmbientLight(0x4a3a72, 0.7));
+const key1 = new THREE.DirectionalLight(0xece5fa, 1.1);
+key1.position.set(40, 60, 30);
+scene.add(key1);
+const key2 = new THREE.DirectionalLight(0xa685ff, 0.5);
+key2.position.set(-40, -20, -30);
+scene.add(key2);
+
+// ============================================================
+// CAMERA CONTROL — orbit around either the whole ring or the
+// currently-selected detector, spherical coords.
+// ============================================================
+let viewMode = 'ring'; // 'ring' | 'detector'
+let selectedExp = 'atlas';
+let theta = 0.9, phiAng = 1.15;
+let ringDist = ringRadius*1.55, ringTargetDist = ringDist;
+let detDist = 55, detTargetDist = detDist;
+let dragging=false, lastX=0, lastY=0;
+let camTargetOverride = null; // for fly-to during transitions
+let focusTarget = new THREE.Vector3(0,0,0);
+let focusCurrent = new THREE.Vector3(0,0,0);
+
+stageEl.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; stageEl.classList.add('dragging'); });
+window.addEventListener('pointerup', ()=>{ dragging=false; stageEl.classList.remove('dragging'); });
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+  theta -= dx*0.0055;
+  phiAng = Math.max(0.15, Math.min(Math.PI-0.15, phiAng - dy*0.0045));
+});
+stageEl.addEventListener('wheel', e=>{
+  e.preventDefault();
+  if(viewMode==='ring'){
+    ringTargetDist = Math.max(ringRadius*0.35, Math.min(ringRadius*3.2, ringTargetDist + e.deltaY*0.35));
+  } else {
+    detTargetDist = Math.max(14, Math.min(180, detTargetDist + e.deltaY*0.08));
+  }
+}, {passive:false});
+
+function updateCamera(dt){
+  ringDist += (ringTargetDist-ringDist)*Math.min(1,dt*4);
+  detDist += (detTargetDist-detDist)*Math.min(1,dt*4);
+  const dist = viewMode==='ring' ? ringDist : detDist;
+
+  if(viewMode==='detector'){
+    const exp = EXPERIMENTS[selectedExp];
+    focusTarget.set(0, 0, 0);
+  } else {
+    focusTarget.set(0,0,0);
+  }
+  focusCurrent.lerp(focusTarget, Math.min(1, dt*4));
+
+  const camPos = new THREE.Vector3(
+    dist*Math.sin(phiAng)*Math.cos(theta),
+    dist*Math.cos(phiAng),
+    dist*Math.sin(phiAng)*Math.sin(theta)
+  );
+  camPos.add(focusCurrent);
+  camera.position.copy(camPos);
+  camera.lookAt(focusCurrent);
+}
+
+// ============================================================
+// EXPERIMENT SELECTOR UI
+// ============================================================
+const expRow = $('expRow');
+EXP_ORDER.forEach(key=>{
+  const exp = EXPERIMENTS[key];
+  const btn = document.createElement('button');
+  btn.className = 'exp-btn' + (key===selectedExp?' active':'');
+  btn.dataset.key = key;
+  btn.innerHTML = `<span class="dot" style="background:${exp.color};color:${exp.color};"></span><span class="lbl"><b>${exp.name}</b><small>${exp.pointLabel}</small></span>`;
+  btn.addEventListener('click', ()=> selectExperiment(key));
+  expRow.appendChild(btn);
+});
+
+function renderFigures(key){
+  const exp = EXPERIMENTS[key];
+  $('figHd').innerHTML = exp.name + ' — derived figures<span class="n" id="figSub">' + exp.full + '</span>';
+  $('figList').innerHTML = exp.figures.map(([k,v])=>'<div class="fig-row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>').join('');
+  $('aboutBox').innerHTML = exp.about.map(p=>'<p>'+p+'</p>').join('');
+}
+
+function selectExperiment(key){
+  selectedExp = key;
+  document.querySelectorAll('.exp-btn').forEach(b=>b.classList.toggle('active', b.dataset.key===key));
+  renderFigures(key);
+  if(viewMode==='detector'){
+    showDetail(key);
+  }
+}
+
+// ============================================================
+// VIEW MODE TABS
+// ============================================================
+const camTabs = $('camTabs');
+camTabs.querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    camTabs.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    viewMode = btn.dataset.mode;
+    if(viewMode==='ring'){
+      ringGroup.visible = true;
+      for(const k of EXP_ORDER) detailGroups[k].visible = false;
+    } else {
+      showDetail(selectedExp);
+    }
+  });
+});
+function showDetail(key){
+  ringGroup.visible = false;
+  for(const k of EXP_ORDER) detailGroups[k].visible = (k===key);
+}
+
+// clicking a marker in ring view jumps straight to that detector's cutaway
+for(const key of EXP_ORDER){
+  markers[key].userData.clickable = true;
+}
+const raycaster = new THREE.Raycaster();
+const mouseNDC = new THREE.Vector2();
+stageEl.addEventListener('click', (e)=>{
+  if(Math.abs(e.clientX-lastX)>4 || Math.abs(e.clientY-lastY)>4) return; // was a drag
+  if(viewMode!=='ring') return;
+  mouseNDC.x = (e.clientX/window.innerWidth)*2-1;
+  mouseNDC.y = -(e.clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouseNDC, camera);
+  for(const key of EXP_ORDER){
+    const hit = raycaster.intersectObject(markers[key].children[0]);
+    if(hit.length){
+      selectExperiment(key);
+      camTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.mode==='detector'));
+      viewMode = 'detector';
+      showDetail(key);
+      break;
+    }
+  }
+});
+
+renderFigures(selectedExp);
+
+// ============================================================
+// BEAM PHYSICS READOUT
+// ============================================================
+function updateBeamReadout(){
+  const gamma = lorentzGamma(LHC.beamEnergyTeV);
+  const beta = betaFromGamma(gamma);
+  $('beamEnergy').innerHTML = LHC.beamEnergyTeV.toFixed(1) + ' TeV <small>per beam</small>';
+  $('evComEnergy').textContent = LHC.comEnergyTeV.toFixed(1) + ' TeV';
+  $('evGamma').textContent = fmtNum(gamma,0) + '×';
+  $('evSpeed').textContent = beta.toFixed(9) + ' c';
+  $('evCrossing').textContent = 'every ' + LHC.bunchSpacingNs + ' ns';
+}
+updateBeamReadout();
+
+// ============================================================
+// COLLISION EVENT — schematic track fan-out at the currently
+// selected interaction point, momentum-conserving directions.
+// ============================================================
+const collideBtn = $('collideBtn');
+let eventTracks = [];
+let eventFlash = null;
+const eventGroup = new THREE.Group();
+eventGroup.renderOrder = 999; // always draw the event on top of the (semi-transparent) detector/ring geometry
+scene.add(eventGroup);
+
+function spawnEvent(){
+  // clear old
+  eventTracks.forEach(t=>eventGroup.remove(t.line));
+  eventTracks = [];
+  if(eventFlash){ eventGroup.remove(eventFlash.mesh); eventFlash = null; }
+
+  const n = 6 + Math.floor(Math.random()*10); // secondary multiplicity, illustrative
+  const originWorld = new THREE.Vector3();
+  if(viewMode==='detector'){
+    originWorld.set(0,0,0);
+  } else {
+    markers[selectedExp].getWorldPosition(originWorld);
+  }
+  // track length scaled to whatever's currently on screen: the detector
+  // cutaway (tens of metres) or the full ring (hundreds of scene units)
+  const maxLen = viewMode==='detector' ? 22 : ringRadius*0.16;
+
+  // generate n directions roughly isotropic but momentum-balanced in pairs
+  const dirs = [];
+  for(let i=0;i<Math.floor(n/2);i++){
+    const th = Math.random()*Math.PI*2;
+    const ph = Math.acos(2*Math.random()-1);
+    const d = new THREE.Vector3(Math.sin(ph)*Math.cos(th), Math.sin(ph)*Math.sin(th)*0.6, Math.cos(ph));
+    d.normalize();
+    dirs.push(d.clone());
+    dirs.push(d.clone().multiplyScalar(-1).add(new THREE.Vector3((Math.random()-0.5)*0.3,(Math.random()-0.5)*0.3,(Math.random()-0.5)*0.3)).normalize());
+  }
+
+  const palette = [0x8fd8ff, 0xa685ff, 0xd68fff, 0xff8fd0, 0xece5fa];
+  dirs.forEach((d,i)=>{
+    const len = maxLen*(0.4+Math.random()*0.6);
+    const pts = [originWorld.clone(), originWorld.clone().add(d.clone().multiplyScalar(len))];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const col = palette[i%palette.length];
+    const mat = new THREE.LineBasicMaterial({
+      color:col, transparent:true, opacity:1,
+      blending:THREE.AdditiveBlending, depthTest:false
+    });
+    const line = new THREE.Line(geo, mat);
+    line.renderOrder = 999;
+    eventGroup.add(line);
+    eventTracks.push({line, mat, age:0, life:1.4+Math.random()*0.6});
+  });
+
+  // bright flash burst at the interaction point so the collision actually
+  // reads as an "explosion" rather than a few thin lines
+  const flashGeo = new THREE.SphereGeometry(1, 16, 16);
+  const flashMat = new THREE.MeshBasicMaterial({
+    color:0xffffff, transparent:true, opacity:1,
+    blending:THREE.AdditiveBlending, depthTest:false
+  });
+  const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+  flashMesh.position.copy(originWorld);
+  flashMesh.renderOrder = 1000;
+  const flashMaxScale = (viewMode==='detector' ? 6 : ringRadius*0.05);
+  flashMesh.scale.setScalar(0.001);
+  eventGroup.add(flashMesh);
+  eventFlash = {mesh:flashMesh, mat:flashMat, age:0, life:0.55, maxScale:flashMaxScale};
+}
+
+collideBtn.addEventListener('click', ()=>{
+  spawnEvent();
+  collideBtn.disabled = true;
+  setTimeout(()=>{ collideBtn.disabled = false; }, 450);
+});
+
+// ============================================================
+// SCOPE NOTE TOGGLE
+// ============================================================
+$('scopeToggle').addEventListener('click', ()=>{
+  const note = $('scopeNote');
+  const open = note.classList.toggle('open');
+  $('scopeToggle').setAttribute('aria-expanded', open?'true':'false');
+});
+
+// ============================================================
+// RESIZE + LOOP
+// ============================================================
+function resize(){
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.1, clock.getDelta());
+  const t = clock.elapsedTime;
+
+  if(!dragging && viewMode==='ring'){ theta += dt*0.02; }
+
+  updateCamera(dt);
+
+  // animate beam pulses travelling around the ring in correct opposite directions
+  [pulsesA, pulsesB].forEach(group=>{
+    const offsetY = group.userData.offsetY;
+    group.userData.pulses.forEach(p=>{
+      const ang = p.phase + p.dir * t * 0.55;
+      p.mesh.position.set(Math.cos(ang)*ringRadius, offsetY, Math.sin(ang)*ringRadius);
+    });
+  });
+
+  // pulse marker glow
+  for(const key of EXP_ORDER){
+    const s = 1 + 0.15*Math.sin(t*2.4 + IP_ANGLE[key]);
+    markers[key].children[0].scale.setScalar(s);
+    markers[key].userData.halo.lookAt(camera.position);
+  }
+
+  // fade out event tracks
+  eventTracks.forEach(tr=>{
+    tr.age += dt;
+    const k = Math.max(0, 1 - tr.age/tr.life);
+    tr.mat.opacity = k;
+  });
+  eventTracks.filter(tr=>tr.age >= tr.life).forEach(tr=>eventGroup.remove(tr.line));
+  eventTracks = eventTracks.filter(tr=>tr.age < tr.life);
+
+  // grow-then-fade the collision flash burst
+  if(eventFlash){
+    eventFlash.age += dt;
+    const p = Math.min(1, eventFlash.age/eventFlash.life);
+    const growth = 1 - Math.pow(1-p, 3); // fast ease-out
+    eventFlash.mesh.scale.setScalar(0.001 + eventFlash.maxScale*growth);
+    eventFlash.mat.opacity = Math.max(0, 1-p);
+    if(p>=1){
+      eventGroup.remove(eventFlash.mesh);
+      eventFlash = null;
+    }
+  }
+
+  // slow rotation of detail groups for inspection
+  if(viewMode==='detector'){
+    // no auto-rotate; user drags to orbit (theta/phi drive camera already)
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.__lhcReady = true;
+document.getElementById('loader').classList.add('hidden');
+
+})();
+}catch(err){
+  console.error(err);
+  document.getElementById('loadError').classList.add('show');
+  document.getElementById('loader').classList.add('hidden');
+}
+</script>
+</body>
+</html>
